@@ -361,10 +361,10 @@ public class JobControllerV1 extends BaseController
       return Response.status(Response.Status.BAD_REQUEST).entity("{\"error\":\"The session ID '" + job.sessionId + "' is invalid.\"}").build();
     }
 
-    // Check if the job is completed
-    if (job.state != RoutingJobState.COMPLETED)
-    {
-      return Response.status(Response.Status.BAD_REQUEST).entity("{\"error\":\"The job hasn't finished yet.\"}").build();
+    // Return current output if available, even if job isn't completed
+    if (job.output == null || job.output.getData() == null) {
+      return Response.status(Response.Status.NO_CONTENT)
+             .entity("{\"message\":\"No output available yet.\"}").build();
     }
 
     var result = new BoardFilePayload();
