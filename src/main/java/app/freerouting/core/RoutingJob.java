@@ -525,4 +525,19 @@ public class RoutingJob implements Serializable, Comparable<RoutingJob>
     }
   }
 
+  /**
+   * Gets the current board state as a session file.
+   * Used to provide intermediate routing results while the job is still running.
+   * @return The current board state as a byte array, or null if not available
+   */
+  public byte[] getSpeculativeOutput()
+  {
+    // Only return speculative results if we have a board and are running
+    if (board == null || state != RoutingJobState.RUNNING) {
+      return null;
+    }
+
+    // TODO
+  }
+
 }
