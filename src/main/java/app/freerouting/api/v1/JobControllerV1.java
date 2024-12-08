@@ -340,7 +340,10 @@ public class JobControllerV1 extends BaseController
   @Produces(MediaType.APPLICATION_JSON)
   public Response downloadOutput(
       @PathParam("jobId")
-      String jobId)
+      String jobId,
+      @QueryParam("speculative")
+      @DefaultValue("false")
+      boolean speculative)
   {
     // Authenticate the user
     UUID userId = AuthenticateUser();
@@ -361,20 +364,46 @@ public class JobControllerV1 extends BaseController
       return Response.status(Response.Status.BAD_REQUEST).entity("{\"error\":\"The session ID '" + job.sessionId + "' is invalid.\"}").build();
     }
 
-    // Check if the job is completed
-    if (job.state != RoutingJobState.COMPLETED)
+    // Check if we can return output
+    if (!speculative && job.state != RoutingJobState.COMPLETED)
     {
       return Response.status(Response.Status.BAD_REQUEST).entity("{\"error\":\"The job hasn't finished yet.\"}").build();
     }
 
+    // For speculative results, only return if the job is running or completed
+    if (speculative && job.state != RoutingJobState.RUNNING && job.state != RoutingJobState.COMPLETED)
+    {
+      return Response.status(Response.Status.BAD_REQUEST).entity("{\"error\":\"The job must be running or completed to get speculative results.\"}").build();
+    }
+
     var result = new BoardFilePayload();
     result.jobId = job.id;
-    result.setFilename(job.output.getFilename());
-    result.setData(job.output.getData().readAllBytes());
-    result.dataBase64 = java.util.Base64.getEncoder().encodeToString(result.getData().readAllBytes());
+    result.setFilename(job.output != null ? job.output.getFilename() : job.input.getFilename().replace(".dsn", ".ses"));
+    
+    // For speculative results, get the current board state
+    if (speculative && job.state == RoutingJobState.RUNNING)
+    {
+      // Get the current board state as a session file
+      byte[] speculativeData = job.getSpeculativeOutput();
+      if (speculativeData != null)
+      {
+        result.setData(speculativeData);
+        result.dataBase64 = java.util.Base64.getEncoder().encodeToString(speculativeData);
+      }
+      else
+      {
+        return Response.status(Response.Status.BAD_REQUEST).entity("{\"error\":\"No speculative results available yet.\"}").build();
+      }
+    }
+    else
+    {
+      // Return the final output
+      result.setData(job.output.getData().readAllBytes());
+      result.dataBase64 = java.util.Base64.getEncoder().encodeToString(result.getData().readAllBytes());
+    }
 
     var response = GSON.toJson(result);
-    FRAnalytics.apiEndpointCalled("GET v1/jobs/" + jobId + "/output", "", response.replace(result.dataBase64, TextManager.shortenString(result.dataBase64, 4)));
+    FRAnalytics.apiEndpointCalled("GET v1/jobs/" + jobId + "/output" + (speculative ? "?speculative=true" : ""), "", response.replace(result.dataBase64, TextManager.shortenString(result.dataBase64, 4)));
     return Response.ok(response).build();
   }
 
