@@ -36,3 +36,5 @@ scripts/logs
 scripts/test.dsn
 scripts/test.ses
 scripts/freeroutingp.exe
+.aider*
+.env
